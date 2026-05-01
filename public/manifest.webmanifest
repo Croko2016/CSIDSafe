@@ -1,7 +1,7 @@
 {
-  "name": "CSID Safe",
-  "short_name": "CSID Safe",
-  "description": "Food checker for Congenital Sucrase-Isomaltase Deficiency.",
+  "name": "Kai Ora",
+  "short_name": "Kai Ora",
+  "description": "Food checker for Congenital Sucrase-Isomaltase Deficiency (CSID).",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

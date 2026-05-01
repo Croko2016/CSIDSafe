@@ -1,10 +1,31 @@
 import type { Food, FoodsPayload, SafeFood, SavedRecipe, Settings, UnsafeFood } from './types';
 import { DEFAULT_THRESHOLDS } from './traffic-light';
 
-const SETTINGS_KEY = 'csid-safe.settings';
-const SAFE_FOODS_KEY = 'csid-safe.safeFoods';
-const UNSAFE_FOODS_KEY = 'csid-safe.unsafeFoods';
-const SAVED_RECIPES_KEY = 'csid-safe.savedRecipes';
+const SETTINGS_KEY = 'kai-ora.settings';
+const SAFE_FOODS_KEY = 'kai-ora.safeFoods';
+const UNSAFE_FOODS_KEY = 'kai-ora.unsafeFoods';
+const SAVED_RECIPES_KEY = 'kai-ora.savedRecipes';
+
+// One-shot migration from the previous "csid-safe.*" namespace. Runs at module
+// load before any reads, so existing user data carries over after the rename.
+const LEGACY_KEY_MAP: Record<string, string> = {
+  'csid-safe.settings': SETTINGS_KEY,
+  'csid-safe.safeFoods': SAFE_FOODS_KEY,
+  'csid-safe.unsafeFoods': UNSAFE_FOODS_KEY,
+  'csid-safe.savedRecipes': SAVED_RECIPES_KEY,
+};
+try {
+  for (const [oldKey, newKey] of Object.entries(LEGACY_KEY_MAP)) {
+    if (localStorage.getItem(newKey) !== null) continue;
+    const value = localStorage.getItem(oldKey);
+    if (value !== null) {
+      localStorage.setItem(newKey, value);
+      localStorage.removeItem(oldKey);
+    }
+  }
+} catch {
+  /* ignore — private mode or storage disabled */
+}
 
 const DEFAULT_SETTINGS: Settings = {
   thresholds: DEFAULT_THRESHOLDS,

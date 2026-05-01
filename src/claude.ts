@@ -47,7 +47,7 @@ export async function generateRecipe(req: RecipeRequest): Promise<RecipeResult> 
     (req.cuisine ? `\nPreferred cuisine: ${req.cuisine}` : '');
 
   console.info(
-    `[CSID Safe] Sending ${req.greenFoods.length} green foods to Claude.`,
+    `[Kai Ora] Sending ${req.greenFoods.length} green foods to Claude.`,
     {
       firstFiveGreens: req.greenFoods.slice(0, 5).map((f) => f.name),
       priorities: req.priorities ?? [],

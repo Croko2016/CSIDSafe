@@ -1,8 +1,8 @@
-// CSID Safe service worker.
+// Kai Ora service worker.
 // Cache-first for same-origin assets, pass-through for everything else
 // (the Claude API in particular, which must always go to the network).
 
-const CACHE = 'csid-safe-v6';
+const CACHE = 'kai-ora-v7';
 const PRECACHE = [
   './',
   './foods.json',

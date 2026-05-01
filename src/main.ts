@@ -70,7 +70,7 @@ async function bootstrap(): Promise<void> {
 
   app.appendChild(
     el('div', { class: 'app-shell' }, [
-      el('header', { class: 'app-header' }, [el('h1', {}, 'CSID Safe')]),
+      el('header', { class: 'app-header' }, [el('h1', {}, 'Kai Ora')]),
       viewRoot,
       tabBar,
     ]),

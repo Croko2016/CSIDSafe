@@ -1,4 +1,4 @@
-# CSID Safe
+# Kai Ora
 
 A Progressive Web App that helps someone with Congenital Sucrase-Isomaltase Deficiency (CSID) check the sucrose, maltose, and lactose content of foods, keep a list of safe foods, and generate recipes that only use them.
 

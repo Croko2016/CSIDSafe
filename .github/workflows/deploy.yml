@@ -1,4 +1,4 @@
-name: Deploy CSID Safe
+name: Deploy Kai Ora
 
 on:
   push:

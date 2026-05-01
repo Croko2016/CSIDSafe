@@ -61,8 +61,8 @@ function Draw-Icon {
     $g.FillEllipse($amber, $startX + $dotSize + $gap, $dotsY, $dotSize, $dotSize)
     $g.FillEllipse($red, $startX + ($dotSize + $gap) * 2, $dotsY, $dotSize, $dotSize)
 
-    # "CSID" text below dots
-    $fontSize = [single]([Math]::Max(10, $size * 0.20))
+    # "Kai Ora" text below dots
+    $fontSize = [single]([Math]::Max(10, $size * 0.16))
     $bold = [System.Drawing.FontStyle]::Bold
     $pixel = [System.Drawing.GraphicsUnit]::Pixel
     $font = New-Object System.Drawing.Font('Segoe UI', $fontSize, $bold, $pixel)
@@ -72,7 +72,7 @@ function Draw-Icon {
 
     $textY = $dotsY + $dotSize + [int]($size * 0.10)
     $textHeight = [int]($size * 0.30)
-    $g.DrawString('CSID', $font, $whiteBrush, (New-Object System.Drawing.RectangleF $pad, $textY, ($size - $pad * 2), $textHeight), $sf)
+    $g.DrawString('Kai Ora', $font, $whiteBrush, (New-Object System.Drawing.RectangleF $pad, $textY, ($size - $pad * 2), $textHeight), $sf)
 
     $g.Dispose()
     $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
