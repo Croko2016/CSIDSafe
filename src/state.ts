@@ -1,9 +1,10 @@
-import type { Food, FoodsPayload, SafeFood, Settings, UnsafeFood } from './types';
+import type { Food, FoodsPayload, SafeFood, SavedRecipe, Settings, UnsafeFood } from './types';
 import { DEFAULT_THRESHOLDS } from './traffic-light';
 
 const SETTINGS_KEY = 'csid-safe.settings';
 const SAFE_FOODS_KEY = 'csid-safe.safeFoods';
 const UNSAFE_FOODS_KEY = 'csid-safe.unsafeFoods';
+const SAVED_RECIPES_KEY = 'csid-safe.savedRecipes';
 
 const DEFAULT_SETTINGS: Settings = {
   thresholds: DEFAULT_THRESHOLDS,
@@ -38,6 +39,14 @@ let _unsafeFoods: UnsafeFood[] = (() => {
   try {
     const raw = localStorage.getItem(UNSAFE_FOODS_KEY);
     return raw ? (JSON.parse(raw) as UnsafeFood[]) : [];
+  } catch {
+    return [];
+  }
+})();
+let _savedRecipes: SavedRecipe[] = (() => {
+  try {
+    const raw = localStorage.getItem(SAVED_RECIPES_KEY);
+    return raw ? (JSON.parse(raw) as SavedRecipe[]) : [];
   } catch {
     return [];
   }
@@ -128,5 +137,21 @@ export function addUnsafeFood(foodId: string): void {
 export function removeUnsafeFood(foodId: string): void {
   _unsafeFoods = _unsafeFoods.filter((u) => u.foodId !== foodId);
   writeJSON(UNSAFE_FOODS_KEY, _unsafeFoods);
+  notify();
+}
+
+export function getSavedRecipes(): SavedRecipe[] {
+  return _savedRecipes;
+}
+
+export function addSavedRecipe(recipe: SavedRecipe): void {
+  _savedRecipes = [recipe, ..._savedRecipes];
+  writeJSON(SAVED_RECIPES_KEY, _savedRecipes);
+  notify();
+}
+
+export function removeSavedRecipe(id: string): void {
+  _savedRecipes = _savedRecipes.filter((r) => r.id !== id);
+  writeJSON(SAVED_RECIPES_KEY, _savedRecipes);
   notify();
 }

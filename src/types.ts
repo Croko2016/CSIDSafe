@@ -43,6 +43,15 @@ export interface UnsafeFood {
   addedAt: number;
 }
 
+export interface SavedRecipe {
+  id: string;
+  name: string;
+  cuisine: string;
+  mealType: string;
+  text: string;
+  savedAt: number;
+}
+
 export interface Settings {
   thresholds: Thresholds;
   apiKey: string;

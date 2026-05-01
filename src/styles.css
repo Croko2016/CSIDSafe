@@ -515,6 +515,120 @@ body {
 
 .fridge-warnings:empty { display: none; }
 
+/* ---- segmented control (Recipes: Generate / Saved) ---- */
+
+.segmented {
+  display: inline-flex;
+  align-self: flex-start;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.seg-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 0.12s, color 0.12s;
+}
+
+.seg-btn:hover:not(.active) { color: var(--text); }
+
+.seg-btn.active {
+  background: var(--surface);
+  color: var(--primary);
+  box-shadow: var(--shadow-soft);
+}
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ---- saved recipe cards ---- */
+
+.saved-recipe {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.saved-recipe-open {
+  border-color: var(--border-strong);
+}
+
+.saved-recipe-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 4px 12px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 14px 16px;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+}
+
+.saved-recipe-head:hover { background: var(--surface-2); }
+
+.saved-recipe-title {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 18px;
+  font-weight: 600;
+  font-variation-settings: 'opsz' 24;
+  color: var(--text);
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.saved-recipe-meta {
+  grid-column: 1;
+  grid-row: 2;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.saved-recipe-chevron {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  font-size: 16px;
+  color: var(--text-soft);
+}
+
+.saved-recipe-body {
+  margin: 0 16px 12px;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+  background: var(--bg);
+  box-shadow: none;
+  padding: 14px 0 0;
+}
+
+.saved-recipe-actions {
+  padding: 0 16px 14px;
+  justify-content: flex-end;
+}
+
 /* ---- recipe text output ---- */
 
 .recipe-text {
