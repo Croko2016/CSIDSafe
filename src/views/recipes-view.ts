@@ -3,15 +3,15 @@ import {
   addSavedRecipe,
   getFood,
   getFoods,
+  getOverride,
   getSavedRecipes,
   getSettings,
   getUnsafeFoods,
-  isSafeFood,
   isUnsafeFood,
   removeSavedRecipe,
   subscribe,
 } from '../state';
-import { lightsFor } from '../traffic-light';
+import { analyseFood } from '../food-resolve';
 import { generateRecipe, type MealType } from '../claude';
 import { extractRecipeMeta } from '../recipe-meta';
 import type { Food, SavedRecipe } from '../types';
@@ -29,28 +29,36 @@ let _savedThisRecipe = false;
 let _expandedRecipeId: string | null = null;
 
 interface RecipePool {
+  // Foods with their resolved values substituted in (so Claude sees override
+  // values where present, FOODfiles values otherwise, category-default 0s
+  // for inherently-zero categories).
   pool: Food[];
   greenCount: number;
-  unknownCount: number;
+  overrideCount: number;
+  categoryDefaultCount: number;
 }
 
 function recipePool(): RecipePool {
   const thresholds = getSettings().thresholds;
   const pool: Food[] = [];
   let greenCount = 0;
-  let unknownCount = 0;
+  let overrideCount = 0;
+  let categoryDefaultCount = 0;
   for (const food of getFoods()) {
     if (isUnsafeFood(food.id)) continue;
-    const overall = lightsFor(food, thresholds).overall;
-    if (overall === 'green') {
-      pool.push(food);
-      greenCount++;
-    } else if (overall === 'unknown' && isSafeFood(food.id)) {
-      pool.push(food);
-      unknownCount++;
-    }
+    const analysis = analyseFood(food, thresholds, getOverride(food.id));
+    if (analysis.lights.overall !== 'green') continue;
+    pool.push({
+      ...food,
+      sucs: analysis.values.sucs,
+      mals: analysis.values.mals,
+      lacs: analysis.values.lacs,
+    });
+    greenCount++;
+    if (analysis.source === 'override') overrideCount++;
+    else if (analysis.source === 'category-default') categoryDefaultCount++;
   }
-  return { pool, greenCount, unknownCount };
+  return { pool, greenCount, overrideCount, categoryDefaultCount };
 }
 
 function parseFridgeTerms(input: string): string[] {
@@ -120,7 +128,7 @@ function modeToggle(rebuild: () => void): HTMLElement {
 }
 
 function buildGenerator(view: HTMLElement, rebuild: () => void): void {
-  const { pool, greenCount, unknownCount } = recipePool();
+  const { pool, greenCount, overrideCount, categoryDefaultCount } = recipePool();
   const apiKeyOk = getSettings().apiKey.length > 0;
 
   const mealSelect = el('select', {
@@ -243,17 +251,17 @@ function buildGenerator(view: HTMLElement, rebuild: () => void): void {
       el('div', { class: 'note note-warn' }, 'Add a Claude API key in Settings to generate recipes.'),
     );
   }
-  const breakdown =
-    unknownCount > 0
-      ? ` (${greenCount} green from database + ${unknownCount} saved unknown${unknownCount === 1 ? '' : 's'})`
-      : '';
+  const parts: string[] = [];
+  if (overrideCount > 0) parts.push(`${overrideCount} from your overrides`);
+  if (categoryDefaultCount > 0) parts.push(`${categoryDefaultCount} category-default`);
+  const breakdown = parts.length > 0 ? ` (incl. ${parts.join(', ')})` : '';
   status.push(
     el(
       'div',
-      { class: pool.length < 3 ? 'note note-warn' : 'note' },
-      `${pool.length} food${pool.length === 1 ? '' : 's'} available for recipes${breakdown}` +
-        (pool.length < 3
-          ? ' — fewer than 3 limits recipes. Loosen thresholds in Settings, save trusted unknowns, or unblock foods.'
+      { class: greenCount < 3 ? 'note note-warn' : 'note' },
+      `${greenCount} food${greenCount === 1 ? '' : 's'} available for recipes${breakdown}` +
+        (greenCount < 3
+          ? ' — fewer than 3 limits recipes. Loosen thresholds in Settings, override missing values, or unblock foods.'
           : '.'),
     ),
   );

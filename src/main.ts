@@ -11,7 +11,7 @@ type TabId = 'search' | 'safe' | 'blocked' | 'recipes' | 'settings';
 
 const TABS: { id: TabId; label: string; render: (r: HTMLElement) => () => void }[] = [
   { id: 'search', label: 'Search', render: renderSearch },
-  { id: 'safe', label: 'Safe', render: renderSafeFoods },
+  { id: 'safe', label: 'Go-To', render: renderSafeFoods },
   { id: 'blocked', label: 'Blocked', render: renderBlocked },
   { id: 'recipes', label: 'Recipes', render: renderRecipes },
   { id: 'settings', label: 'Settings', render: renderSettings },

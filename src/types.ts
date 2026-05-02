@@ -43,6 +43,23 @@ export interface UnsafeFood {
   addedAt: number;
 }
 
+export interface FoodOverride {
+  foodId: string;
+  sucs: number;
+  mals: number;
+  lacs: number;
+  updatedAt: number;
+}
+
+export type DataSource = 'override' | 'database' | 'category-default' | 'unknown';
+
+export interface FoodAnalysis {
+  food: Food;
+  values: { sucs: number; mals: number; lacs: number };
+  source: DataSource;
+  lights: FoodLights;
+}
+
 export interface SavedRecipe {
   id: string;
   name: string;

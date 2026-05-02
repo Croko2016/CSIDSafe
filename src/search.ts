@@ -1,7 +1,7 @@
 import Fuse from 'fuse.js';
-import type { Food, FoodLights, TrafficLight } from './types';
-import { lightsFor } from './traffic-light';
-import { getFoods, getSettings } from './state';
+import type { Food, FoodAnalysis, TrafficLight } from './types';
+import { analyseFood } from './food-resolve';
+import { getFoods, getOverride, getSettings } from './state';
 
 let _fuse: Fuse<Food> | null = null;
 let _lastFoods: Food[] = [];
@@ -25,12 +25,7 @@ export interface SearchOptions {
   limit?: number;
 }
 
-export interface SearchHit {
-  food: Food;
-  lights: FoodLights;
-}
-
-export function searchFoods({ query, filter, limit = 50 }: SearchOptions): SearchHit[] {
+export function searchFoods({ query, filter, limit = 50 }: SearchOptions): FoodAnalysis[] {
   const thresholds = getSettings().thresholds;
   const trimmed = query.trim();
 
@@ -41,11 +36,11 @@ export function searchFoods({ query, filter, limit = 50 }: SearchOptions): Searc
     candidates = fuse().search(trimmed).map((r) => r.item);
   }
 
-  const hits: SearchHit[] = [];
+  const hits: FoodAnalysis[] = [];
   for (const food of candidates) {
-    const lights = lightsFor(food, thresholds);
-    if (filter !== 'all' && lights.overall !== filter) continue;
-    hits.push({ food, lights });
+    const analysis = analyseFood(food, thresholds, getOverride(food.id));
+    if (filter !== 'all' && analysis.lights.overall !== filter) continue;
+    hits.push(analysis);
     if (hits.length >= limit) break;
   }
 

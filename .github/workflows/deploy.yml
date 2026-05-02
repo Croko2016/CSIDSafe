@@ -2,7 +2,7 @@ name: Deploy Kai Ora
 
 on:
   push:
-    branches: [master]
+    branches: [main, master]
   workflow_dispatch:
 
 permissions:

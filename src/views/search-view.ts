@@ -10,28 +10,11 @@ import {
   subscribe,
 } from '../state';
 import { autoCategorize } from '../categorize';
-import type { DotLight, Food, FoodLights, TrafficLight } from '../types';
+import type { Food, FoodAnalysis, TrafficLight } from '../types';
+import { editButton, sourceIcon, trafficSummary, valuesLine } from './food-bits';
 
 let _query = '';
 let _filter: TrafficLight | 'all' = 'all';
-
-function dot(light: DotLight, label: string): HTMLElement {
-  return el('span', { class: `dot dot-${light}`, title: label });
-}
-
-function trafficSummary(lights: FoodLights): HTMLElement {
-  return el('span', { class: 'lights' }, [
-    dot(lights.sucs, `Sucrose: ${lights.sucs}`),
-    dot(lights.mals, `Maltose: ${lights.mals}`),
-    dot(lights.lacs, `Lactose: ${lights.lacs}`),
-  ]);
-}
-
-const UNKNOWN_TOOLTIP = 'Disaccharide data unavailable — verify before eating.';
-
-function unknownTag(): HTMLElement {
-  return el('span', { class: 'unknown-tag', title: UNKNOWN_TOOLTIP }, '?');
-}
 
 function toggleSafeButton(food: Food): HTMLElement {
   const saved = isSafeFood(food.id);
@@ -51,7 +34,7 @@ function toggleSafeButton(food: Food): HTMLElement {
         }
       },
     },
-    saved ? 'Saved' : '+ Save',
+    saved ? 'Pinned' : '+ Pin',
   );
 }
 
@@ -72,29 +55,29 @@ function toggleBlockButton(food: Food): HTMLElement {
 
 function renderList(container: HTMLElement): void {
   clear(container);
-  const hits = searchFoods({ query: _query, filter: _filter, limit: 100 });
+  const hits: FoodAnalysis[] = searchFoods({ query: _query, filter: _filter, limit: 100 });
   if (hits.length === 0) {
     container.appendChild(el('div', { class: 'empty' }, 'No foods match.'));
     return;
   }
-  for (const { food, lights } of hits) {
+  for (const analysis of hits) {
+    const { food, lights, source, values } = analysis;
     const blocked = isUnsafeFood(food.id);
-    const unknown = lights.overall === 'unknown';
     const cls = `food food-${lights.overall}${blocked ? ' food-blocked' : ''}`;
-    const head: HTMLElement[] = [trafficSummary(lights), el('div', { class: 'food-name' }, food.name)];
-    if (unknown) head.push(unknownTag());
+    const head: HTMLElement[] = [trafficSummary(analysis), el('div', { class: 'food-name' }, food.name)];
+    const icon = sourceIcon(source);
+    if (icon) head.push(icon);
     if (blocked) head.push(el('span', { class: 'block-tag' }, 'Blocked'));
 
     const actions: HTMLElement[] = [];
     if (!blocked) actions.push(toggleSafeButton(food));
+    actions.push(editButton(food, values));
     actions.push(toggleBlockButton(food));
 
     container.appendChild(
       el('div', { class: cls }, [
         el('div', { class: 'food-head' }, head),
-        el('div', { class: 'values' }, [
-          `Suc ${food.sucs}g · Mal ${food.mals}g · Lac ${food.lacs}g per 100g`,
-        ]),
+        el('div', { class: 'values' }, [valuesLine(analysis)]),
         el('div', { class: 'food-actions' }, actions),
       ]),
     );

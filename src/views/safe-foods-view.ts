@@ -1,6 +1,7 @@
 import { el, clear } from '../dom';
 import {
   getFood,
+  getOverride,
   getSafeFoods,
   getSettings,
   isUnsafeFood,
@@ -9,26 +10,9 @@ import {
   updateSafeFoodCategory,
 } from '../state';
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '../categorize';
-import { lightsFor } from '../traffic-light';
-import type { Category, DotLight, FoodLights } from '../types';
-
-function dot(light: DotLight, label: string): HTMLElement {
-  return el('span', { class: `dot dot-${light}`, title: label });
-}
-
-function summary(lights: FoodLights): HTMLElement {
-  return el('span', { class: 'lights' }, [
-    dot(lights.sucs, `Sucrose: ${lights.sucs}`),
-    dot(lights.mals, `Maltose: ${lights.mals}`),
-    dot(lights.lacs, `Lactose: ${lights.lacs}`),
-  ]);
-}
-
-const UNKNOWN_TOOLTIP = 'Disaccharide data unavailable — verify before eating.';
-
-function unknownTag(): HTMLElement {
-  return el('span', { class: 'unknown-tag', title: UNKNOWN_TOOLTIP }, '?');
-}
+import { analyseFood } from '../food-resolve';
+import { editButton, sourceIcon, trafficSummary, valuesLine } from './food-bits';
+import type { Category } from '../types';
 
 function categorySelect(foodId: string, current: Category): HTMLElement {
   const select = el('select', {
@@ -57,8 +41,8 @@ function renderList(container: HTMLElement): void {
   if (safeFoods.length === 0) {
     const msg =
       hiddenCount > 0
-        ? `All saved foods are currently blocked (${hiddenCount}). Unblock them on the Blocked tab to see them here.`
-        : 'No saved foods yet. Add some from Search.';
+        ? `All your go-to foods are currently blocked (${hiddenCount}). Unblock them to see them here.`
+        : 'No go-to foods yet. Pin some from Search.';
     container.appendChild(el('div', { class: 'empty' }, msg));
     return;
   }
@@ -68,7 +52,7 @@ function renderList(container: HTMLElement): void {
       el(
         'div',
         { class: 'note' },
-        `${hiddenCount} saved food${hiddenCount === 1 ? '' : 's'} hidden (blocked).`,
+        `${hiddenCount} go-to food${hiddenCount === 1 ? '' : 's'} hidden (blocked).`,
       ),
     );
   }
@@ -95,23 +79,26 @@ function renderList(container: HTMLElement): void {
         ...items.map((safe) => {
           const food = getFood(safe.foodId);
           if (!food) return el('div', { class: 'food food-missing' }, 'Unknown food');
-          const lights = lightsFor(food, thresholds);
-          const head: HTMLElement[] = [summary(lights), el('div', { class: 'food-name' }, food.name)];
-          if (lights.overall === 'unknown') head.push(unknownTag());
-          return el('div', { class: `food food-${lights.overall}` }, [
+          const analysis = analyseFood(food, thresholds, getOverride(food.id));
+          const head: HTMLElement[] = [
+            trafficSummary(analysis),
+            el('div', { class: 'food-name' }, food.name),
+          ];
+          const icon = sourceIcon(analysis.source);
+          if (icon) head.push(icon);
+          return el('div', { class: `food food-${analysis.lights.overall}` }, [
             el('div', { class: 'food-head' }, head),
-            el('div', { class: 'values' }, [
-              `Suc ${food.sucs}g · Mal ${food.mals}g · Lac ${food.lacs}g per 100g`,
-            ]),
+            el('div', { class: 'values' }, [valuesLine(analysis)]),
             el('div', { class: 'food-actions' }, [
               categorySelect(food.id, safe.category),
+              editButton(food, analysis.values),
               el(
                 'button',
                 {
                   class: 'btn btn-remove',
                   onclick: () => removeSafeFood(food.id),
                 },
-                'Remove',
+                'Unpin',
               ),
             ]),
           ]);
@@ -125,7 +112,15 @@ export function render(root: HTMLElement): () => void {
   clear(root);
   const list = el('div', { class: 'list' });
   root.appendChild(
-    el('div', { class: 'view' }, [el('h2', { class: 'view-title' }, 'Safe foods'), list]),
+    el('div', { class: 'view' }, [
+      el('h2', { class: 'view-title' }, 'My Go-To Foods'),
+      el(
+        'div',
+        { class: 'help' },
+        'A personal favourites list for inspiration. Recipe generation pulls from the full database, not just this list.',
+      ),
+      list,
+    ]),
   );
   renderList(list);
   return subscribe(() => renderList(list));

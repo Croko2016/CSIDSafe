@@ -2,7 +2,7 @@
 // Cache-first for same-origin assets, pass-through for everything else
 // (the Claude API in particular, which must always go to the network).
 
-const CACHE = 'kai-ora-v10';
+const CACHE = 'kai-ora-v11';
 const PRECACHE = [
   './',
   './foods.json',

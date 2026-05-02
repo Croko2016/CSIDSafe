@@ -1,10 +1,19 @@
-import type { Food, FoodsPayload, SafeFood, SavedRecipe, Settings, UnsafeFood } from './types';
+import type {
+  Food,
+  FoodOverride,
+  FoodsPayload,
+  SafeFood,
+  SavedRecipe,
+  Settings,
+  UnsafeFood,
+} from './types';
 import { DEFAULT_THRESHOLDS } from './traffic-light';
 
 const SETTINGS_KEY = 'kai-ora.settings';
 const SAFE_FOODS_KEY = 'kai-ora.safeFoods';
 const UNSAFE_FOODS_KEY = 'kai-ora.unsafeFoods';
 const SAVED_RECIPES_KEY = 'kai-ora.savedRecipes';
+const OVERRIDES_KEY = 'kai-ora.overrides';
 
 // One-shot migration from the previous "csid-safe.*" namespace. Runs at module
 // load before any reads, so existing user data carries over after the rename.
@@ -70,6 +79,16 @@ let _savedRecipes: SavedRecipe[] = (() => {
     return raw ? (JSON.parse(raw) as SavedRecipe[]) : [];
   } catch {
     return [];
+  }
+})();
+let _overrides: Map<string, FoodOverride> = (() => {
+  try {
+    const raw = localStorage.getItem(OVERRIDES_KEY);
+    if (!raw) return new Map();
+    const arr = JSON.parse(raw) as FoodOverride[];
+    return new Map(arr.map((o) => [o.foodId, o]));
+  } catch {
+    return new Map();
   }
 })();
 let _foodsById: Map<string, Food> = new Map();
@@ -177,6 +196,33 @@ export function removeSavedRecipe(id: string): void {
   notify();
 }
 
+// ---- food overrides --------------------------------------------------------
+
+function persistOverrides(): void {
+  writeJSON(OVERRIDES_KEY, [..._overrides.values()]);
+}
+
+export function getOverride(foodId: string): FoodOverride | undefined {
+  return _overrides.get(foodId);
+}
+
+export function getOverrides(): FoodOverride[] {
+  return [..._overrides.values()];
+}
+
+export function setOverride(o: FoodOverride): void {
+  _overrides.set(o.foodId, o);
+  persistOverrides();
+  notify();
+}
+
+export function removeOverride(foodId: string): void {
+  if (_overrides.delete(foodId)) {
+    persistOverrides();
+    notify();
+  }
+}
+
 // ---- backup / restore -------------------------------------------------------
 
 export interface BackupPayload {
@@ -185,22 +231,25 @@ export interface BackupPayload {
   safeFoods: SafeFood[];
   unsafeFoods: UnsafeFood[];
   savedRecipes: SavedRecipe[];
+  overrides: FoodOverride[];
 }
 
 export interface ImportSummary {
   safeFoods: number;
   unsafeFoods: number;
   savedRecipes: number;
+  overrides: number;
   skipped: number;
 }
 
 export function exportData(): BackupPayload {
   return {
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     safeFoods: _safeFoods,
     unsafeFoods: _unsafeFoods,
     savedRecipes: _savedRecipes,
+    overrides: [..._overrides.values()],
   };
 }
 
@@ -241,6 +290,31 @@ function validUnsafeFoods(value: unknown, ctx: { skipped: number }): UnsafeFood[
   return out;
 }
 
+function validOverrides(value: unknown, ctx: { skipped: number }): FoodOverride[] | null {
+  if (!Array.isArray(value)) return null;
+  const out: FoodOverride[] = [];
+  for (const item of value) {
+    if (
+      !isObject(item) ||
+      typeof item.foodId !== 'string' ||
+      typeof item.sucs !== 'number' ||
+      typeof item.mals !== 'number' ||
+      typeof item.lacs !== 'number'
+    ) {
+      ctx.skipped++;
+      continue;
+    }
+    out.push({
+      foodId: item.foodId,
+      sucs: item.sucs,
+      mals: item.mals,
+      lacs: item.lacs,
+      updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : Date.now(),
+    });
+  }
+  return out;
+}
+
 function validSavedRecipes(value: unknown, ctx: { skipped: number }): SavedRecipe[] | null {
   if (!Array.isArray(value)) return null;
   const out: SavedRecipe[] = [];
@@ -275,10 +349,11 @@ export function replaceWithBackup(raw: unknown): ImportSummary {
   const newSafe = validSafeFoods(raw.safeFoods, ctx);
   const newUnsafe = validUnsafeFoods(raw.unsafeFoods, ctx);
   const newRecipes = validSavedRecipes(raw.savedRecipes, ctx);
+  const newOverrides = validOverrides(raw.overrides, ctx);
 
-  if (newSafe === null && newUnsafe === null && newRecipes === null) {
+  if (newSafe === null && newUnsafe === null && newRecipes === null && newOverrides === null) {
     throw new Error(
-      'Backup is missing all of safeFoods, unsafeFoods, and savedRecipes. Wrong file?',
+      'Backup is missing all of safeFoods, unsafeFoods, savedRecipes, and overrides. Wrong file?',
     );
   }
 
@@ -294,6 +369,10 @@ export function replaceWithBackup(raw: unknown): ImportSummary {
     _savedRecipes = newRecipes;
     writeJSON(SAVED_RECIPES_KEY, _savedRecipes);
   }
+  if (newOverrides !== null) {
+    _overrides = new Map(newOverrides.map((o) => [o.foodId, o]));
+    persistOverrides();
+  }
 
   notify();
 
@@ -301,6 +380,7 @@ export function replaceWithBackup(raw: unknown): ImportSummary {
     safeFoods: newSafe?.length ?? 0,
     unsafeFoods: newUnsafe?.length ?? 0,
     savedRecipes: newRecipes?.length ?? 0,
+    overrides: newOverrides?.length ?? 0,
     skipped: ctx.skipped,
   };
 }

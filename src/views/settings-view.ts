@@ -1,14 +1,18 @@
 import { el, clear } from '../dom';
 import {
   exportData,
+  getFood,
+  getOverrides,
   getSafeFoods,
   getSavedRecipes,
   getSettings,
   getUnsafeFoods,
+  removeOverride,
   replaceWithBackup,
   updateSettings,
 } from '../state';
 import { DEFAULT_THRESHOLDS } from '../traffic-light';
+import { openEditFoodModal } from './edit-food-modal';
 import type { Disaccharide, Thresholds } from '../types';
 
 const LABELS: Record<Disaccharide, string> = {
@@ -170,22 +174,25 @@ export function render(root: HTMLElement): () => void {
             safe: getSafeFoods().length,
             blocked: getUnsafeFoods().length,
             recipes: getSavedRecipes().length,
+            overrides: getOverrides().length,
           };
           const proceed = confirm(
             `Restore from backup?\n\n` +
               `This will REPLACE your current data:\n` +
-              `  • ${cur.safe} saved foods\n` +
+              `  • ${cur.safe} go-to foods\n` +
               `  • ${cur.blocked} blocked foods\n` +
-              `  • ${cur.recipes} saved recipes\n\n` +
+              `  • ${cur.recipes} saved recipes\n` +
+              `  • ${cur.overrides} overrides\n\n` +
               `with whatever is in the backup file. Cannot be undone.`,
           );
           if (!proceed) return;
           const summary = replaceWithBackup(parsed);
           alert(
             `Restored:\n` +
-              `  • ${summary.safeFoods} saved foods\n` +
+              `  • ${summary.safeFoods} go-to foods\n` +
               `  • ${summary.unsafeFoods} blocked foods\n` +
-              `  • ${summary.savedRecipes} saved recipes` +
+              `  • ${summary.savedRecipes} saved recipes\n` +
+              `  • ${summary.overrides} overrides` +
               (summary.skipped > 0 ? `\n\n${summary.skipped} invalid entries skipped.` : ''),
           );
           build();
@@ -213,12 +220,69 @@ export function render(root: HTMLElement): () => void {
       safe: getSafeFoods().length,
       blocked: getUnsafeFoods().length,
       recipes: getSavedRecipes().length,
+      overrides: getOverrides().length,
     };
     const countLine = el(
       'div',
       { class: 'help' },
-      `Currently stored: ${counts.safe} saved · ${counts.blocked} blocked · ${counts.recipes} recipes.`,
+      `Currently stored: ${counts.safe} go-to · ${counts.blocked} blocked · ${counts.recipes} recipes · ${counts.overrides} overrides.`,
     );
+
+    // ---- My Corrections list -------------------------------------------------
+
+    const correctionsList = el('div', { class: 'corrections-list' });
+    const overrides = [...getOverrides()].sort((a, b) => b.updatedAt - a.updatedAt);
+
+    if (overrides.length === 0) {
+      correctionsList.appendChild(
+        el(
+          'div',
+          { class: 'empty' },
+          'No overrides yet. Tap the Edit button on any food to enter your own values.',
+        ),
+      );
+    } else {
+      for (const o of overrides) {
+        const food = getFood(o.foodId);
+        const name = food?.name ?? `Unknown food (${o.foodId})`;
+        const editBtn = el(
+          'button',
+          {
+            class: 'btn',
+            onclick: () => {
+              if (!food) return;
+              void openEditFoodModal(food, { sucs: o.sucs, mals: o.mals, lacs: o.lacs });
+            },
+            disabled: !food,
+          },
+          'Edit',
+        );
+        const removeBtn = el(
+          'button',
+          {
+            class: 'btn btn-remove',
+            onclick: () => {
+              if (confirm(`Remove your override for "${name}"?`)) {
+                removeOverride(o.foodId);
+                build();
+              }
+            },
+          },
+          'Remove',
+        );
+        correctionsList.appendChild(
+          el('div', { class: 'correction-row' }, [
+            el('div', { class: 'correction-name' }, name),
+            el(
+              'div',
+              { class: 'correction-values' },
+              `Suc ${o.sucs}g · Mal ${o.mals}g · Lac ${o.lacs}g per 100g`,
+            ),
+            el('div', { class: 'correction-actions' }, [editBtn, removeBtn]),
+          ]),
+        );
+      }
+    }
 
     root.appendChild(
       el('div', { class: 'view' }, [
@@ -249,11 +313,21 @@ export function render(root: HTMLElement): () => void {
         ]),
 
         el('section', { class: 'settings-section' }, [
+          el('h3', {}, 'My Corrections'),
+          el(
+            'div',
+            { class: 'help' },
+            'Foods where you\'ve manually entered values that take priority over the FOODfiles database.',
+          ),
+          correctionsList,
+        ]),
+
+        el('section', { class: 'settings-section' }, [
           el('h3', {}, 'Backup & restore'),
           el(
             'div',
             { class: 'help' },
-            'Saves your safe foods, blocked foods and saved recipes to a JSON file you control. The Claude API key and threshold settings are NOT included. Importing replaces all three lists.',
+            'Saves your go-to foods, blocked foods, saved recipes and manual overrides to a JSON file. The Claude API key and threshold settings are NOT included. Importing replaces everything.',
           ),
           countLine,
           el('div', { class: 'btn-row' }, [exportBtn, importBtn]),

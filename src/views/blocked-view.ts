@@ -1,25 +1,7 @@
 import { el, clear } from '../dom';
-import { getFood, getSettings, getUnsafeFoods, removeUnsafeFood, subscribe } from '../state';
-import { lightsFor } from '../traffic-light';
-import type { DotLight, FoodLights } from '../types';
-
-function dot(light: DotLight, label: string): HTMLElement {
-  return el('span', { class: `dot dot-${light}`, title: label });
-}
-
-function summary(lights: FoodLights): HTMLElement {
-  return el('span', { class: 'lights' }, [
-    dot(lights.sucs, `Sucrose: ${lights.sucs}`),
-    dot(lights.mals, `Maltose: ${lights.mals}`),
-    dot(lights.lacs, `Lactose: ${lights.lacs}`),
-  ]);
-}
-
-const UNKNOWN_TOOLTIP = 'Disaccharide data unavailable — verify before eating.';
-
-function unknownTag(): HTMLElement {
-  return el('span', { class: 'unknown-tag', title: UNKNOWN_TOOLTIP }, '?');
-}
+import { getFood, getOverride, getSettings, getUnsafeFoods, removeUnsafeFood, subscribe } from '../state';
+import { analyseFood } from '../food-resolve';
+import { editButton, sourceIcon, trafficSummary, valuesLine } from './food-bits';
 
 function renderList(container: HTMLElement): void {
   clear(container);
@@ -59,17 +41,21 @@ function renderList(container: HTMLElement): void {
       continue;
     }
 
-    const lights = lightsFor(food, thresholds);
-    const head: HTMLElement[] = [summary(lights), el('div', { class: 'food-name' }, food.name)];
-    if (lights.overall === 'unknown') head.push(unknownTag());
+    const analysis = analyseFood(food, thresholds, getOverride(food.id));
+    const head: HTMLElement[] = [
+      trafficSummary(analysis),
+      el('div', { class: 'food-name' }, food.name),
+    ];
+    const icon = sourceIcon(analysis.source);
+    if (icon) head.push(icon);
     head.push(el('span', { class: 'block-tag' }, 'Blocked'));
+
     container.appendChild(
-      el('div', { class: `food food-${lights.overall} food-blocked` }, [
+      el('div', { class: `food food-${analysis.lights.overall} food-blocked` }, [
         el('div', { class: 'food-head' }, head),
-        el('div', { class: 'values' }, [
-          `Suc ${food.sucs}g · Mal ${food.mals}g · Lac ${food.lacs}g per 100g`,
-        ]),
+        el('div', { class: 'values' }, [valuesLine(analysis)]),
         el('div', { class: 'food-actions' }, [
+          editButton(food, analysis.values),
           el(
             'button',
             { class: 'btn btn-block', onclick: () => removeUnsafeFood(food.id) },
@@ -90,7 +76,7 @@ export function render(root: HTMLElement): () => void {
       el(
         'div',
         { class: 'help' },
-        'These foods are excluded from your safe list and recipe generation, regardless of their database values.',
+        'These foods are excluded from your go-to list and recipe generation, regardless of their database values.',
       ),
       list,
     ]),
