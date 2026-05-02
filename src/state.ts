@@ -176,3 +176,131 @@ export function removeSavedRecipe(id: string): void {
   writeJSON(SAVED_RECIPES_KEY, _savedRecipes);
   notify();
 }
+
+// ---- backup / restore -------------------------------------------------------
+
+export interface BackupPayload {
+  version: number;
+  exportedAt: string;
+  safeFoods: SafeFood[];
+  unsafeFoods: UnsafeFood[];
+  savedRecipes: SavedRecipe[];
+}
+
+export interface ImportSummary {
+  safeFoods: number;
+  unsafeFoods: number;
+  savedRecipes: number;
+  skipped: number;
+}
+
+export function exportData(): BackupPayload {
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    safeFoods: _safeFoods,
+    unsafeFoods: _unsafeFoods,
+    savedRecipes: _savedRecipes,
+  };
+}
+
+function isObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function validSafeFoods(value: unknown, ctx: { skipped: number }): SafeFood[] | null {
+  if (!Array.isArray(value)) return null;
+  const out: SafeFood[] = [];
+  for (const item of value) {
+    if (!isObject(item) || typeof item.foodId !== 'string' || typeof item.category !== 'string') {
+      ctx.skipped++;
+      continue;
+    }
+    out.push({
+      foodId: item.foodId,
+      category: item.category as SafeFood['category'],
+      addedAt: typeof item.addedAt === 'number' ? item.addedAt : Date.now(),
+    });
+  }
+  return out;
+}
+
+function validUnsafeFoods(value: unknown, ctx: { skipped: number }): UnsafeFood[] | null {
+  if (!Array.isArray(value)) return null;
+  const out: UnsafeFood[] = [];
+  for (const item of value) {
+    if (!isObject(item) || typeof item.foodId !== 'string') {
+      ctx.skipped++;
+      continue;
+    }
+    out.push({
+      foodId: item.foodId,
+      addedAt: typeof item.addedAt === 'number' ? item.addedAt : Date.now(),
+    });
+  }
+  return out;
+}
+
+function validSavedRecipes(value: unknown, ctx: { skipped: number }): SavedRecipe[] | null {
+  if (!Array.isArray(value)) return null;
+  const out: SavedRecipe[] = [];
+  for (const item of value) {
+    if (
+      !isObject(item) ||
+      typeof item.id !== 'string' ||
+      typeof item.text !== 'string' ||
+      typeof item.name !== 'string'
+    ) {
+      ctx.skipped++;
+      continue;
+    }
+    out.push({
+      id: item.id,
+      name: item.name,
+      cuisine: typeof item.cuisine === 'string' ? item.cuisine : '—',
+      mealType: typeof item.mealType === 'string' ? item.mealType : 'dinner',
+      text: item.text,
+      savedAt: typeof item.savedAt === 'number' ? item.savedAt : Date.now(),
+    });
+  }
+  return out;
+}
+
+export function replaceWithBackup(raw: unknown): ImportSummary {
+  if (!isObject(raw)) {
+    throw new Error('Backup file is not a JSON object.');
+  }
+
+  const ctx = { skipped: 0 };
+  const newSafe = validSafeFoods(raw.safeFoods, ctx);
+  const newUnsafe = validUnsafeFoods(raw.unsafeFoods, ctx);
+  const newRecipes = validSavedRecipes(raw.savedRecipes, ctx);
+
+  if (newSafe === null && newUnsafe === null && newRecipes === null) {
+    throw new Error(
+      'Backup is missing all of safeFoods, unsafeFoods, and savedRecipes. Wrong file?',
+    );
+  }
+
+  if (newSafe !== null) {
+    _safeFoods = newSafe;
+    writeJSON(SAFE_FOODS_KEY, _safeFoods);
+  }
+  if (newUnsafe !== null) {
+    _unsafeFoods = newUnsafe;
+    writeJSON(UNSAFE_FOODS_KEY, _unsafeFoods);
+  }
+  if (newRecipes !== null) {
+    _savedRecipes = newRecipes;
+    writeJSON(SAVED_RECIPES_KEY, _savedRecipes);
+  }
+
+  notify();
+
+  return {
+    safeFoods: newSafe?.length ?? 0,
+    unsafeFoods: newUnsafe?.length ?? 0,
+    savedRecipes: newRecipes?.length ?? 0,
+    skipped: ctx.skipped,
+  };
+}

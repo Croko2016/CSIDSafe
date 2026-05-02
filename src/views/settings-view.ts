@@ -1,5 +1,13 @@
 import { el, clear } from '../dom';
-import { getSettings, updateSettings } from '../state';
+import {
+  exportData,
+  getSafeFoods,
+  getSavedRecipes,
+  getSettings,
+  getUnsafeFoods,
+  replaceWithBackup,
+  updateSettings,
+} from '../state';
 import { DEFAULT_THRESHOLDS } from '../traffic-light';
 import type { Disaccharide, Thresholds } from '../types';
 
@@ -63,10 +71,34 @@ function thresholdRow(disaccharide: Disaccharide, thresholds: Thresholds): HTMLE
   ]);
 }
 
+function maskKey(key: string): string {
+  if (key.length <= 8) return '•'.repeat(key.length);
+  return `${key.slice(0, 7)}…${key.slice(-4)}`;
+}
+
+function renderKeyStatus(target: HTMLElement, key: string): void {
+  clear(target);
+  if (key.length === 0) {
+    target.appendChild(el('span', { class: 'status-dot status-empty' }));
+    target.appendChild(el('span', { class: 'status-text' }, 'No key saved.'));
+    return;
+  }
+  const looksValid = key.startsWith('sk-ant-') && key.length >= 20;
+  const dotClass = looksValid ? 'status-ok' : 'status-warn';
+  const label = looksValid
+    ? `Key saved · ${maskKey(key)}`
+    : `Key saved (unusual format · ${maskKey(key)})`;
+  target.appendChild(el('span', { class: `status-dot ${dotClass}` }));
+  target.appendChild(el('span', { class: 'status-text' }, label));
+}
+
 export function render(root: HTMLElement): () => void {
   function build(): void {
     clear(root);
     const settings = getSettings();
+
+    const apiKeyStatus = el('div', { class: 'api-key-status' });
+    renderKeyStatus(apiKeyStatus, settings.apiKey);
 
     const apiKeyInput = el('input', {
       type: 'password',
@@ -74,8 +106,12 @@ export function render(root: HTMLElement): () => void {
       value: settings.apiKey,
       placeholder: 'sk-ant-...',
       autocomplete: 'off',
-      onchange: (e) => {
-        updateSettings({ apiKey: (e.target as HTMLInputElement).value.trim() });
+      // oninput so a paste-and-leave flow on mobile persists immediately;
+      // onchange only fires on blur, which mobile keyboards often skip.
+      oninput: (e) => {
+        const v = (e.target as HTMLInputElement).value.trim();
+        updateSettings({ apiKey: v });
+        renderKeyStatus(apiKeyStatus, v);
       },
     });
 
@@ -83,7 +119,7 @@ export function render(root: HTMLElement): () => void {
       type: 'text',
       class: 'model-input',
       value: settings.model,
-      onchange: (e) => {
+      oninput: (e) => {
         const v = (e.target as HTMLInputElement).value.trim();
         if (v) updateSettings({ model: v });
       },
@@ -96,6 +132,92 @@ export function render(root: HTMLElement): () => void {
         onclick: () => updateSettings({ thresholds: DEFAULT_THRESHOLDS }),
       },
       'Reset to defaults',
+    );
+
+    // ---- backup / restore ----------------------------------------------------
+
+    function downloadBackup(): void {
+      const payload = exportData();
+      const json = JSON.stringify(payload, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `kai-ora-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    const fileInput = el('input', {
+      type: 'file',
+      accept: 'application/json,.json',
+      class: 'visually-hidden',
+      onchange: async (e) => {
+        const target = e.target as HTMLInputElement;
+        const file = target.files?.[0];
+        if (!file) return;
+        try {
+          const text = await file.text();
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(text);
+          } catch {
+            throw new Error("That doesn't look like a JSON file.");
+          }
+          const cur = {
+            safe: getSafeFoods().length,
+            blocked: getUnsafeFoods().length,
+            recipes: getSavedRecipes().length,
+          };
+          const proceed = confirm(
+            `Restore from backup?\n\n` +
+              `This will REPLACE your current data:\n` +
+              `  • ${cur.safe} saved foods\n` +
+              `  • ${cur.blocked} blocked foods\n` +
+              `  • ${cur.recipes} saved recipes\n\n` +
+              `with whatever is in the backup file. Cannot be undone.`,
+          );
+          if (!proceed) return;
+          const summary = replaceWithBackup(parsed);
+          alert(
+            `Restored:\n` +
+              `  • ${summary.safeFoods} saved foods\n` +
+              `  • ${summary.unsafeFoods} blocked foods\n` +
+              `  • ${summary.savedRecipes} saved recipes` +
+              (summary.skipped > 0 ? `\n\n${summary.skipped} invalid entries skipped.` : ''),
+          );
+          build();
+        } catch (err) {
+          alert(`Import failed: ${(err as Error).message}`);
+        } finally {
+          target.value = '';
+        }
+      },
+    });
+
+    const exportBtn = el(
+      'button',
+      { class: 'btn btn-add', onclick: downloadBackup },
+      'Export backup',
+    );
+
+    const importBtn = el(
+      'button',
+      { class: 'btn', onclick: () => fileInput.click() },
+      'Import backup',
+    );
+
+    const counts = {
+      safe: getSafeFoods().length,
+      blocked: getUnsafeFoods().length,
+      recipes: getSavedRecipes().length,
+    };
+    const countLine = el(
+      'div',
+      { class: 'help' },
+      `Currently stored: ${counts.safe} saved · ${counts.blocked} blocked · ${counts.recipes} recipes.`,
     );
 
     root.appendChild(
@@ -121,8 +243,21 @@ export function render(root: HTMLElement): () => void {
           el('label', { class: 'field' }, [
             el('span', { class: 'label' }, 'API key'),
             apiKeyInput,
+            apiKeyStatus,
           ]),
           el('label', { class: 'field' }, [el('span', { class: 'label' }, 'Model'), modelInput]),
+        ]),
+
+        el('section', { class: 'settings-section' }, [
+          el('h3', {}, 'Backup & restore'),
+          el(
+            'div',
+            { class: 'help' },
+            'Saves your safe foods, blocked foods and saved recipes to a JSON file you control. The Claude API key and threshold settings are NOT included. Importing replaces all three lists.',
+          ),
+          countLine,
+          el('div', { class: 'btn-row' }, [exportBtn, importBtn]),
+          fileInput,
         ]),
       ]),
     );
