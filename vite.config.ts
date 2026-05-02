@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  base: './',
+  base: '/kai-ora/',
   build: {
     target: 'es2022',
     sourcemap: true,
